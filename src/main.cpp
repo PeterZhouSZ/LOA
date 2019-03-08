@@ -130,4 +130,6 @@ void mouse_click_callback(GLFWwindow* window, int button, int action, int mods)
 void key_callback   (GLFWwindow* window, int key, int scancode, int action, int mods){
     if(key == GLFW_KEY_C && action == GLFW_PRESS)
         scene.update_curve = true;
+    if(key == GLFW_KEY_B && action == GLFW_PRESS)
+        scene.update_body_line = true;
 }

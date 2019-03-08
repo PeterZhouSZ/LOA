@@ -58,7 +58,6 @@ vec3 dist_grad_t1(std::vector<vec3> line, vec3 t0, vec3 t1){
     return grad1;
 }
 
-
 std::vector<vec3> fit_LOA(std::vector<vec3> line){
    vec3 t0(2,0,0), t1(2,2,0);
    float d = dist(line, t0, t1);
@@ -86,8 +85,6 @@ std::vector<vec3> interpolate_user_input(std::vector<vec3> line){
     }
     return interpolated_line;
 }
-
-
 
 void scene_exercise::setup_data(std::map<std::string,GLuint>& shaders, scene_structure& , gui_structure& )
 {
@@ -123,6 +120,7 @@ void scene_exercise::setup_data(std::map<std::string,GLuint>& shaders, scene_str
 }
 
 void scene_exercise::compute_body_lines(){
+    std::cout << "Computing Body Lines... " << std::flush;
     terminal_bones.clear();
     body_lines.clear();
     int N = skeleton.rest_pose.size();
@@ -137,23 +135,44 @@ void scene_exercise::compute_body_lines(){
         if(degrees[k]==0)
             terminal_bones.push_back(k);
     }
+    if(terminal_bones.size()==1)//only one chain, so we count the root node as a terminal bone
+        terminal_bones.push_back(0);
     //go through all pairs of terminal bones and compute the complete path to connect them
-    for(int i : terminal_bones){
-        for(int j : terminal_bones){
+    for(int i=0 ; i<terminal_bones.size()-1 ; i++){
+        for(int j=i+1 ; j<terminal_bones.size() ; j++){
             std::vector<int> body_line;
-            int node = i;
+            std::vector<int> left;
+            int node = terminal_bones[i];
             while(node != 0){//go back until the root node
-                body_line.push_back(node);
+                left.push_back(node);
                 node = skeleton.connectivity[node].parent;
             }
-            node = j;
-            while(node != 0){//go back until the root node
-                body_line.push_back(node);
+            std::vector<int> right;
+            node = terminal_bones[j];
+            int meeting_node;
+            bool stop = false;
+            while(node != 0 && !stop){//go back until the root node
+                right.push_back(node);
                 node = skeleton.connectivity[node].parent;
+                for(int n : left){
+                    if(node == n){
+                        meeting_node = n;
+                        stop=true;
+                        break;
+                    }
+                }
             }
+            for(int n : left){
+                if(n==meeting_node) //we add the nodes until the meeting point and we discard the portion between the meeting point and the root node
+                    break;
+                body_line.push_back(n);
+            }
+            for(int n : right)
+                body_line.push_back(n);//no filter needed here, since we stopped adding nodes at the meeting point
             body_lines.push_back(body_line);
         }
     }
+    std::cout << "Done. " << body_lines.size() << " body lines found." << std::endl;
 }
 
 std::vector<joint_geometry> interpolate_skeleton_at_time(float time, const std::vector< std::vector<joint_geometry_time> >& animation)
@@ -225,7 +244,6 @@ std::vector<joint_geometry> local_to_global(const std::vector<joint_geometry>& l
     }
     return global;
 }
-
 
 void scene_exercise::load_character_data()
 {
@@ -333,10 +351,6 @@ void scene_exercise::load_cylinder_data()
     timer.t_max = 2.0f;
 }
 
-
-
-
-
 void display_skeleton(const std::vector<joint_geometry>& skeleton_geometry,
                       const std::vector<joint_connectivity>& skeleton_connectivity,
                       const std::map<std::string,GLuint>& shaders,
@@ -407,8 +421,11 @@ void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_str
     normal(skinning.deformed.position, skinning.deformed.connectivity, skinning.deformed.normal);
     character_visual.data_gpu.update_normal(skinning.deformed.normal);
 
-
-    display_bodyline(body_lines[0], skeleton_current, skeleton.connectivity, shaders, scene, segment_drawer);
+    if(scene.update_body_line){
+        current_body_line = (current_body_line+1)%body_lines.size();
+        scene.update_body_line = false;
+    }
+    display_bodyline(body_lines[current_body_line], skeleton_current, skeleton.connectivity, shaders, scene, segment_drawer);
 
     //curve.draw(shaders["mesh"],scene.camera);
     //curve1.draw(shaders["mesh"],scene.camera);

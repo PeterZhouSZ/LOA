@@ -111,6 +111,7 @@ struct scene_exercise : base_scene_exercise
     void compute_body_lines();
     std::vector<std::vector<int>> body_lines;
     std::vector<int> terminal_bones;
+    int current_body_line = 0;
 };
 
 

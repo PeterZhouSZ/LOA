@@ -14,6 +14,7 @@ struct scene_structure
 
     std::vector<vcl::vec3> draw_points;
     bool update_curve = false;
+    bool update_body_line = false;
 };
 
 
