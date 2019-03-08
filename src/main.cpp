@@ -32,6 +32,7 @@ scene_exercise exercise;
 void window_size_callback(GLFWwindow* /*window*/, int width, int height);
 void cursor_position_callback(GLFWwindow* window, double xpos, double ypos);
 void mouse_click_callback(GLFWwindow* window, int button, int action, int mods);
+void key_callback   (GLFWwindow* window, int key, int scancode, int action, int mods);
 
 
 // ************************************** //
@@ -51,6 +52,7 @@ int main()
     glfwSetCursorPosCallback(gui.window, cursor_position_callback );
     glfwSetMouseButtonCallback(gui.window, mouse_click_callback);
     glfwSetWindowSizeCallback(gui.window, window_size_callback);
+    glfwSetKeyCallback(gui.window, key_callback);
 
     load_shaders(shaders);
     setup_scene(scene, gui);
@@ -124,4 +126,8 @@ void mouse_click_callback(GLFWwindow* window, int button, int action, int mods)
 {
     ImGui::SetWindowFocus(nullptr);
     scene.camera_control.update_mouse_click(scene.camera, window, button, action, mods);
+}
+void key_callback   (GLFWwindow* window, int key, int scancode, int action, int mods){
+    if(key == GLFW_KEY_C && action == GLFW_PRESS)
+        scene.update_curve = true;
 }

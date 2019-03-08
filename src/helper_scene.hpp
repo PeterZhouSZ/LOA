@@ -13,6 +13,7 @@ struct scene_structure
     GLuint texture_white;
 
     std::vector<vcl::vec3> draw_points;
+    bool update_curve = false;
 };
 
 

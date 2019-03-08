@@ -102,11 +102,10 @@ struct scene_exercise : base_scene_exercise
 
     vcl::timer_interval timer;
 
-    vcl::curve_drawable curve;
+    vcl::curve_drawable input_stroke;
+    vcl::curve_drawable interpolated_LOA;
 
-    vcl::curve_drawable curve1;
-
-
+    std::vector<vcl::vec3> current_spline;
     //body lines
     void compute_body_lines();
     std::vector<std::vector<int>> body_lines;

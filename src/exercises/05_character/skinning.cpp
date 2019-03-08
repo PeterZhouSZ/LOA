@@ -59,12 +59,13 @@ vec3 dist_grad_t1(std::vector<vec3> line, vec3 t0, vec3 t1){
 }
 
 
-std::vector<vec3> interpolate_LOA(std::vector<vec3> line){
+std::vector<vec3> fit_LOA(std::vector<vec3> line){
    vec3 t0(2,0,0), t1(2,2,0);
    float d = dist(line, t0, t1);
    float dpred = d+1;
    vec3 grad0=dist_grad_t0(line,t0,t1), grad1=dist_grad_t1(line,t0,t1);
    while ((dpred-d) > 0.01){
+       //gradient descent
        t0 = t0 - 0.1*grad0;
        t1 = t1 - 0.1*grad1;
        grad0=dist_grad_t0(line,t0,t1);
@@ -75,8 +76,8 @@ std::vector<vec3> interpolate_LOA(std::vector<vec3> line){
    return std::vector<vec3>({t0,t1});
 }
 
-std::vector<vec3> get_interpolate_LOA(std::vector<vec3> line){
-    std::vector<vec3> result = interpolate_LOA(line);
+std::vector<vec3> interpolate_user_input(std::vector<vec3> line){
+    std::vector<vec3> result = fit_LOA(line);
     vec3 x0=line[0], x1=line[line.size()-1], t0=result[0], t1=result[1];
     std::vector<vec3> interpolated_line;
     for (int i=0; i<line.size(); i++){
@@ -114,8 +115,8 @@ void scene_exercise::setup_data(std::map<std::string,GLuint>& shaders, scene_str
         float s = float(i)/99;
         line.push_back(vec3(1-s,2-(1-s)*(1-s)+0.05*sin(100*s),0));
     }
-    curve = vcl::curve_drawable(line);
-    curve1 = vcl::curve_drawable(get_interpolate_LOA(line));
+    //curve = vcl::curve_drawable(line);
+    //curve1 = vcl::curve_drawable(interpolate_user_input(line));
     // Load initial cylinder model
     load_cylinder_data();
     compute_body_lines();
@@ -409,8 +410,8 @@ void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_str
 
     display_bodyline(body_lines[0], skeleton_current, skeleton.connectivity, shaders, scene, segment_drawer);
 
-    curve.draw(shaders["mesh"],scene.camera);
-    curve1.draw(shaders["mesh"],scene.camera);
+    //curve.draw(shaders["mesh"],scene.camera);
+    //curve1.draw(shaders["mesh"],scene.camera);
 
 
     if(gui_param.display_skeleton_bones)
@@ -426,9 +427,17 @@ void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_str
         glPolygonOffset( 1.0, 1.0 );
         character_visual.draw(shaders["wireframe"],scene.camera);
     }
+    if(scene.update_curve){
+        current_spline = interpolate_user_input(scene.draw_points);
+        scene.update_curve = false;
+    }
+    interpolated_LOA = vcl::curve_drawable(current_spline);
+    input_stroke = vcl::curve_drawable(scene.draw_points);
     //display the user's stroke
-    vcl::curve_drawable curve(scene.draw_points);
-    curve.draw(shaders["mesh"], scene.camera);
+    input_stroke.draw(shaders["mesh"], scene.camera);
+    //if possible, diplay the interpolated spline
+    if(!current_spline.empty())
+        interpolated_LOA.draw(shaders["mesh"], scene.camera);
 }
 
 
