@@ -102,6 +102,11 @@ struct scene_exercise : base_scene_exercise
 
     vcl::timer_interval timer;
 
+    vcl::curve_drawable curve;
+
+    vcl::curve_drawable curve1;
+
+
     //body lines
     void compute_body_lines();
     std::vector<std::vector<int>> body_lines;

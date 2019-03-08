@@ -16,6 +16,78 @@ std::vector<joint_connectivity> read_skeleton_connectivity(const std::string& fi
 std::vector<std::vector<skinning_influence> > read_skinning_influence(const std::string& filename);
 
 
+vec3 hermit(float s, vec3 x0, vec3 x1, vec3 t0, vec3 t1){
+    return pow(1-s,2)*(x0 + s*(t0 + 2*x0)) + pow(s,2)*(x1 - (1-s)*(t1 - 2*x1));
+}
+
+float dist(std::vector<vec3> line, vec3 t0, vec3 t1){
+    vec3 x0=line[0], x1=line[line.size()-1];
+    float d = 0;
+    for (int i=0; i<line.size(); i++){
+        float s = float(i)/(line.size()-1);
+        d += norm(hermit(s, x0, x1, t0, t1)-line[i]);
+    }
+    return d;
+}
+
+vec3 dist_grad_t0(std::vector<vec3> line, vec3 t0, vec3 t1){
+    vec3 x0=line[0], x1=line[line.size()-1];
+    vec3 grad0(0,0,0);
+    for (int i=0; i<line.size(); i++){
+        float s = float(i)/(line.size()-1);
+        grad0 += 2*pow(1-s,4)*(1+2*s)*s        * x0 +
+                 2*pow(s,3)*pow(1-s,2)*(3-2*s) * x1 +
+                 2*pow(1-s,4)*pow(s,2)         * t0 -
+                 2*pow(1-s,3)*pow(s,3)         * t1 -
+                 2*pow(1-s,2)*s                * line[i];
+    }
+    return grad0;
+}
+
+vec3 dist_grad_t1(std::vector<vec3> line, vec3 t0, vec3 t1){
+    vec3 x0=line[0], x1=line[line.size()-1];
+    vec3 grad1(0,0,0);
+    for (int i=0; i<line.size(); i++){
+        float s = float(i)/(line.size()-1);
+        grad1 += -2*pow(1-s,3)*(1+2*s)*s*s     * x0 -
+                 2*pow(s,4)*(1-s)*(3-2*s)      * x1 -
+                 2*pow(1-s,3)*pow(s,3)         * t0 +
+                 2*pow(1-s,2)*pow(s,4)         * t1 +
+                 2*(1-s)*s*s                   * line[i];
+    }
+    return grad1;
+}
+
+
+std::vector<vec3> interpolate_LOA(std::vector<vec3> line){
+   vec3 t0(2,0,0), t1(2,2,0);
+   float d = dist(line, t0, t1);
+   float dpred = d+1;
+   vec3 grad0=dist_grad_t0(line,t0,t1), grad1=dist_grad_t1(line,t0,t1);
+   while ((dpred-d) > 0.01){
+       t0 = t0 - 0.1*grad0;
+       t1 = t1 - 0.1*grad1;
+       grad0=dist_grad_t0(line,t0,t1);
+       grad1=dist_grad_t1(line,t0,t1);
+       dpred=d;
+       d = dist(line, t0, t1);
+   }
+   return std::vector<vec3>({t0,t1});
+}
+
+std::vector<vec3> get_interpolate_LOA(std::vector<vec3> line){
+    std::vector<vec3> result = interpolate_LOA(line);
+    vec3 x0=line[0], x1=line[line.size()-1], t0=result[0], t1=result[1];
+    std::vector<vec3> interpolated_line;
+    for (int i=0; i<line.size(); i++){
+        float s = float(i)/(line.size()-1);
+        interpolated_line.push_back(hermit(s, x0, x1, t0, t1));
+    }
+    return interpolated_line;
+}
+
+
+
 void scene_exercise::setup_data(std::map<std::string,GLuint>& shaders, scene_structure& , gui_structure& )
 {
     shaders["segment_immediate_mode"] = create_shader_program("shaders/segment_immediate_mode/segment_immediate_mode.vert.glsl","shaders/segment_immediate_mode/segment_immediate_mode.frag.glsl");
@@ -33,7 +105,17 @@ void scene_exercise::setup_data(std::map<std::string,GLuint>& shaders, scene_str
 
     // Sphere used to display joints
     sphere = mesh_primitive_sphere(0.005f);
-
+    std::vector<vec3> line;
+    for (int i=0; i<100; i++){
+        float s = float(i)/99;
+        line.push_back(vec3(s,s*s+0.05*sin(100*s),0));
+    }
+    for (int i=0; i<100; i++){
+        float s = float(i)/99;
+        line.push_back(vec3(1-s,2-(1-s)*(1-s)+0.05*sin(100*s),0));
+    }
+    curve = vcl::curve_drawable(line);
+    curve1 = vcl::curve_drawable(get_interpolate_LOA(line));
     // Load initial cylinder model
     load_cylinder_data();
     compute_body_lines();
@@ -85,7 +167,6 @@ std::vector<joint_geometry> interpolate_skeleton_at_time(float time, const std::
     size_t N_joint = animation.size();
     std::vector<joint_geometry> skeleton;
     skeleton.resize(N_joint);
-
     for(size_t k_joint=0; k_joint<N_joint; ++k_joint)
     {
         const std::vector<joint_geometry_time>& joint_anim = animation[k_joint];
@@ -325,7 +406,11 @@ void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_str
     normal(skinning.deformed.position, skinning.deformed.connectivity, skinning.deformed.normal);
     character_visual.data_gpu.update_normal(skinning.deformed.normal);
 
+
     display_bodyline(body_lines[0], skeleton_current, skeleton.connectivity, shaders, scene, segment_drawer);
+
+    curve.draw(shaders["mesh"],scene.camera);
+    curve1.draw(shaders["mesh"],scene.camera);
 
 
     if(gui_param.display_skeleton_bones)
