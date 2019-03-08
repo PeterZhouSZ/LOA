@@ -427,7 +427,19 @@ void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_str
         glPolygonOffset( 1.0, 1.0 );
         character_visual.draw(shaders["wireframe"],scene.camera);
     }
+
     if(scene.update_curve){
+        if(two_splines)
+        {
+            std::vector<vec3> s1, s2;
+            for(size_t j=0 ; j<=scene.draw_points.size()/2 ; j++)
+                s1.push_back(scene.draw_points[j]);
+            for(size_t j=scene.draw_points.size()/2 ; j<scene.draw_points.size() ; j++)
+                s2.push_back(scene.draw_points[j]);
+            current_spline = interpolate_user_input(s1);
+            for(vcl::vec3 v : interpolate_user_input(s2))
+                current_spline.push_back(v);
+        }else
         current_spline = interpolate_user_input(scene.draw_points);
         scene.update_curve = false;
     }

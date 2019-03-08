@@ -104,6 +104,7 @@ struct scene_exercise : base_scene_exercise
 
     vcl::curve_drawable input_stroke;
     vcl::curve_drawable interpolated_LOA;
+    bool two_splines = true; //wether two use 1 or 2 plines to fit the user's input
 
     std::vector<vcl::vec3> current_spline;
     //body lines
