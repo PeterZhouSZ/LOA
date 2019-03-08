@@ -101,9 +101,12 @@ struct scene_exercise : base_scene_exercise
     gui_parameters gui_param;
 
     vcl::timer_interval timer;
+
+    //body lines
+    void compute_body_lines();
+    std::vector<std::vector<int>> body_lines;
+    std::vector<int> terminal_bones;
 };
-
-
 
 
 

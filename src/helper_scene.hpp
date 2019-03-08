@@ -2,6 +2,7 @@
 
 #include "vcl/vcl.hpp"
 #include <map>
+#include <vector>
 
 struct scene_structure
 {
@@ -10,6 +11,8 @@ struct scene_structure
     vcl::mesh_drawable frame_camera;
     vcl::mesh_drawable frame_worldspace;
     GLuint texture_white;
+
+    std::vector<vcl::vec3> draw_points;
 };
 
 
@@ -30,3 +33,4 @@ void setup_scene(scene_structure &scene, gui_structure& gui);
 void clear_screen();
 void update_fps_title(GLFWwindow* window, const std::string& title, vcl::glfw_fps_counter& fps_counter);
 void gui_start_basic_structure(gui_structure& gui, scene_structure& scene, const std::map<std::string,GLuint>& shaders);
+

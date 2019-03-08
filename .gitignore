@@ -1,0 +1,10 @@
+CMakeCache.txt
+CMakeFiles/*
+Makefile
+imgui.ini
+output/*
+pgm
+pgm.cbp
+cmake_install.cmake
+CMakeLists.txt.user
+

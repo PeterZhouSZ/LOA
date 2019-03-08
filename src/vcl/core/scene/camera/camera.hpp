@@ -26,6 +26,7 @@ struct perspective_structure
     - a scale parameter (zoom in/out) - float
     - a translation (camera position) - vec3
     - an orientation - mat3 */
+
 struct camera_scene
 {
     /** Base distance between camera and (0,0,0) along z-direction */

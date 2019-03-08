@@ -1,9 +1,6 @@
 #include "helper_scene.hpp"
 #include <GLFW/glfw3.h>
-
 using namespace vcl;
-
-
 
 
 GLFWwindow* create_window(const std::string& window_title)
@@ -109,3 +106,4 @@ void gui_start_basic_structure(gui_structure& gui, scene_structure& scene, const
         scene.frame_worldspace.draw(shaders.at("mesh"),scene.camera);
 
 }
+

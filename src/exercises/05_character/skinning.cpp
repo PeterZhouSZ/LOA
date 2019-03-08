@@ -36,8 +36,42 @@ void scene_exercise::setup_data(std::map<std::string,GLuint>& shaders, scene_str
 
     // Load initial cylinder model
     load_cylinder_data();
+    compute_body_lines();
 }
 
+void scene_exercise::compute_body_lines(){
+    terminal_bones.clear();
+    body_lines.clear();
+    int N = skeleton.rest_pose.size();
+    //test for body lines
+    int degrees[N];//counters of the degrees of each node, to spot the extremities
+    for(size_t k=1; k<N; ++k)
+        degrees[k]=0;
+    for(size_t k=1; k<N; ++k)
+        degrees[skeleton.connectivity[k].parent] +=1;
+
+    for(size_t k=1; k<N; ++k){
+        if(degrees[k]==0)
+            terminal_bones.push_back(k);
+    }
+    //go through all pairs of terminal bones and compute the complete path to connect them
+    for(int i : terminal_bones){
+        for(int j : terminal_bones){
+            std::vector<int> body_line;
+            int node = i;
+            while(node != 0){//go back until the root node
+                body_line.push_back(node);
+                node = skeleton.connectivity[node].parent;
+            }
+            node = j;
+            while(node != 0){//go back until the root node
+                body_line.push_back(node);
+                node = skeleton.connectivity[node].parent;
+            }
+            body_lines.push_back(body_line);
+        }
+    }
+}
 
 std::vector<joint_geometry> interpolate_skeleton_at_time(float time, const std::vector< std::vector<joint_geometry_time> >& animation)
 {
@@ -107,7 +141,6 @@ std::vector<joint_geometry> local_to_global(const std::vector<joint_geometry>& l
         global[k].r = global[parent].r * local[k].r;
         global[k].p = global[parent].r.apply(local[k].p) + global[parent].p;
     }
-
     return global;
 }
 
@@ -234,7 +267,6 @@ void display_skeleton(const std::vector<joint_geometry>& skeleton_geometry,
         int parent = skeleton_connectivity[k].parent;
         const vec3& p1 = skeleton_geometry[parent].p;
         const vec3& p2 = skeleton_geometry[k].p;
-
         segment_drawer.uniform_parameter.p1 = p1;
         segment_drawer.uniform_parameter.p2 = p2;
         segment_drawer.draw(shaders.at("segment_immediate_mode"),scene.camera);
@@ -254,7 +286,24 @@ void display_joints(const std::vector<joint_geometry>& skeleton_geometry,
     }
 }
 
-
+void display_bodyline(const std::vector<int> bodyline,
+                      const std::vector<joint_geometry>& skeleton_geometry,
+                      const std::vector<joint_connectivity>& skeleton_connectivity,
+                      const std::map<std::string,GLuint>& shaders,
+                      const scene_structure& scene,
+                      segment_drawable_immediate_mode& segment_drawer)
+{
+    const size_t N = skeleton_geometry.size();
+    for(size_t k : bodyline)
+    {
+        int parent = skeleton_connectivity[k].parent;
+        const vec3& p1 = skeleton_geometry[parent].p;
+        const vec3& p2 = skeleton_geometry[k].p;
+        segment_drawer.uniform_parameter.p1 = p1;
+        segment_drawer.uniform_parameter.p2 = p2;
+        segment_drawer.draw(shaders.at("segment_immediate_mode"),scene.camera);
+    }
+}
 
 
 void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_structure& scene, gui_structure& )
@@ -276,6 +325,8 @@ void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_str
     normal(skinning.deformed.position, skinning.deformed.connectivity, skinning.deformed.normal);
     character_visual.data_gpu.update_normal(skinning.deformed.normal);
 
+    display_bodyline(body_lines[0], skeleton_current, skeleton.connectivity, shaders, scene, segment_drawer);
+
 
     if(gui_param.display_skeleton_bones)
         display_skeleton(skeleton_current, skeleton.connectivity, shaders, scene, segment_drawer);
@@ -290,6 +341,9 @@ void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_str
         glPolygonOffset( 1.0, 1.0 );
         character_visual.draw(shaders["wireframe"],scene.camera);
     }
+    //display the user's stroke
+    vcl::curve_drawable curve(scene.draw_points);
+    curve.draw(shaders["mesh"], scene.camera);
 }
 
 
@@ -307,11 +361,16 @@ void scene_exercise::set_gui()
     ImGui::Checkbox("Mesh", &gui_param.display_mesh);
     ImGui::Checkbox("Wireframe", &gui_param.display_wireframe);
     ImGui::Checkbox("Rest pose", &gui_param.display_rest_pose);
-    if(ImGui::RadioButton("Cylinder", &gui_param.display_type,display_cylinder))
+    if(ImGui::RadioButton("Cylinder", &gui_param.display_type,display_cylinder)){
         load_cylinder_data();
+        compute_body_lines();
+    }
+
     ImGui::SameLine();
-    if(ImGui::RadioButton("Character", &gui_param.display_type,display_character))
+    if(ImGui::RadioButton("Character", &gui_param.display_type,display_character)){
         load_character_data();
+        compute_body_lines();
+    }
 
     // Start and stop animation
     if (ImGui::Button("Stop"))

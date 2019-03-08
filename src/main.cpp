@@ -8,9 +8,6 @@
 // Include exercises
 #include "exercises/exercises.hpp"
 
-
-
-
 // ************************************** //
 // Global data declaration
 // ************************************** //
@@ -121,7 +118,7 @@ void window_size_callback(GLFWwindow* /*window*/, int width, int height)
 
 void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
 {
-    scene.camera_control.update_mouse_move(scene.camera, window, float(xpos), float(ypos));
+    scene.camera_control.update_mouse_move(scene.camera, window, float(xpos), float(ypos), scene.draw_points);
 }
 void mouse_click_callback(GLFWwindow* window, int button, int action, int mods)
 {

@@ -6,9 +6,9 @@ namespace vcl
 {
 
 
-enum class camera_action_state {none, translation, rotation, scale, translation_depth};
+enum class camera_action_state {none, translation, rotation, scale, translation_depth, draw_curve};
 
-void camera_control_glfw::update_mouse_move(camera_scene& camera, GLFWwindow* window, float x1, float y1)
+void camera_control_glfw::update_mouse_move(camera_scene& camera, GLFWwindow* window, float x1, float y1, std::vector<vec3> &draw_points)
 {
     assert(window!=nullptr);
 
@@ -17,6 +17,7 @@ void camera_control_glfw::update_mouse_move(camera_scene& camera, GLFWwindow* wi
     const bool mouse_click_right = (glfwGetMouseButton(window,GLFW_MOUSE_BUTTON_RIGHT)==GLFW_PRESS);
     const bool key_ctrl = (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) || glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL));
     const bool key_shift = (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT));
+    const bool key_space = (glfwGetKey(window, GLFW_KEY_SPACE));
 
     if(update==false || key_shift)
     {
@@ -24,9 +25,6 @@ void camera_control_glfw::update_mouse_move(camera_scene& camera, GLFWwindow* wi
         y0 = y1;
         return;
     }
-
-
-
 
     // Get window size
     int width, height;
@@ -39,7 +37,7 @@ void camera_control_glfw::update_mouse_move(camera_scene& camera, GLFWwindow* wi
 
     if(!mouse_click_left && !mouse_click_right)
         state = camera_action_state::none;
-    else if( mouse_click_left && !key_ctrl )
+    else if( mouse_click_left && !key_ctrl && !key_space)
         state = camera_action_state::rotation;
     else if( mouse_click_left && key_ctrl )
         state = camera_action_state::translation;
@@ -47,7 +45,8 @@ void camera_control_glfw::update_mouse_move(camera_scene& camera, GLFWwindow* wi
         state = camera_action_state::scale;
     else if( mouse_click_right && key_ctrl )
         state = camera_action_state::translation_depth;
-
+    else if( mouse_click_left && key_space)
+        state = camera_action_state::draw_curve;
 
     // ************************************************* //
     // Compute transformation to apply on the camera
@@ -86,6 +85,23 @@ void camera_control_glfw::update_mouse_move(camera_scene& camera, GLFWwindow* wi
         camera.apply_translation_orthogonal_to_screen_plane( translation_magnitude );
     }
 
+    else if( state == camera_action_state::draw_curve ){
+        if(reset_stroke){
+            draw_points.clear();
+            reset_stroke = false;
+        }
+        const float ux1 = 2*x1/float(w)-1;
+        const float uy1 = 1-2*y1/float(h);
+        vcl::ray r = picking_ray(camera, ux1, uy1);
+        vcl::vec3 n = vcl::normalize(camera.orientation * vcl::vec3(0.0f,0.0f,-1.0f));
+        float t = -vcl::dot(r.p, n) / vcl::dot(r.u, n); //solution in the plane of normal opposed to the viewpoint and passing through the origin
+        vcl::vec3 p =  r.p + t * r.u ;
+        draw_points.push_back(p);
+    }
+
+    else if ( state == camera_action_state::none){
+        reset_stroke = true;//next time we draw a curve, we erase the previous one
+    }
 
     // Update previous click position
     x0 = x1;
