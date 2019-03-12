@@ -81,6 +81,21 @@ struct gui_parameters
     int display_type;
 };
 
+struct body_line{
+    std::vector<int> bones; //indices of the bones
+    int root; //index of the root node in bones
+    vcl::vec3 xr; //translation of the root node
+    std::vector<float> S; //body line coordinates
+    std::vector<float> R; //bones' rotations
+};
+
+struct hermit_spline{
+    hermit_spline(vcl::vec3 p, vcl::vec3 q, vcl::vec3 t, vcl::vec3 s):p0(p),p1(q),t0(t),t1(s){}
+    hermit_spline(){}
+    vcl::vec3 p0, p1;
+    vcl::vec3 t0,t1;
+};
+
 struct scene_exercise : base_scene_exercise
 {
 
@@ -102,26 +117,32 @@ struct scene_exercise : base_scene_exercise
 
     vcl::timer_interval timer;
 
-    vcl::curve_drawable input_stroke;
-    vcl::curve_drawable interpolated_LOA;
-    bool two_splines = true; //wether two use 1 or 2 plines to fit the user's input
-
     //Spline interppolation
     float alpha = 0.1f; //gradient descent rate
     float epsilon = 0.001f; //precision
     std::vector<vcl::vec3> current_spline;
+    vcl::curve_drawable input_stroke;
+    vcl::curve_drawable interpolated_LOA;
+    bool two_splines = false; //wether two use 1 or 2 splines to fit the user's input
     //interpolation methods
     vcl::vec3 hermit(float s, vcl::vec3 x0, vcl::vec3 x1, vcl::vec3 t0, vcl::vec3 t1);//evaluate given Hermit polynomial at s
+    vcl::vec3 hermit(float s, hermit_spline spline);
     vcl::vec3 dist_grad_t0(std::vector<vcl::vec3> line, vcl::vec3 t0, vcl::vec3 t1);
     vcl::vec3 dist_grad_t1(std::vector<vcl::vec3> line, vcl::vec3 t0, vcl::vec3 t1);
     std::vector<vcl::vec3> fit_LOA(std::vector<vcl::vec3> line);
     std::vector<vcl::vec3> interpolate_user_input(std::vector<vcl::vec3> line);
     float dist(std::vector<vcl::vec3> line, vcl::vec3 t0, vcl::vec3 t1);
+    hermit_spline interpolated_spline;
     //body lines
     void compute_body_lines();
-    std::vector<std::vector<int>> body_lines;
+    std::vector<body_line> body_lines;
     std::vector<int> terminal_bones;
     int current_body_line = 0;
+    //Energies for computing the pose
+    void compute_position_energy(const scene_structure& scene, const std::vector<int> bodyline, const std::vector<joint_geometry>& skeleton_geometry,
+                                 const std::vector<joint_connectivity>& skeleton_connectivity);
+    void compute_body_line_warping(body_line &bodyline);
+    void compute_body_line_position(std::vector<joint_geometry> &global);
 };
 
 

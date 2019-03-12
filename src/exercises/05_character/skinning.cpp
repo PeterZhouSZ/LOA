@@ -20,6 +20,10 @@ vec3 scene_exercise::hermit(float s, vec3 x0, vec3 x1, vec3 t0, vec3 t1){
     return pow(1-s,2)*(x0 + s*(t0 + 2*x0)) + pow(s,2)*(x1 - (1-s)*(t1 - 2*x1));
 }
 
+vec3 scene_exercise::hermit(float s, hermit_spline spline){
+    return hermit(s, spline.p0, spline.p1, spline.t0, spline.t1);
+}
+
 float scene_exercise::dist(std::vector<vec3> line, vec3 t0, vec3 t1){
     vec3 x0=line[0], x1=line[line.size()-1];
     float d = 0;
@@ -83,6 +87,7 @@ std::vector<vec3> scene_exercise::interpolate_user_input(std::vector<vec3> line)
         float s = float(i)/(line.size()-1);
         interpolated_line.push_back(hermit(s, x0, x1, t0, t1));
     }
+    interpolated_spline = hermit_spline(x0, x1, t0, t1);
     return interpolated_line;
 }
 
@@ -140,7 +145,7 @@ void scene_exercise::compute_body_lines(){
     //go through all pairs of terminal bones and compute the complete path to connect them
     for(int i=0 ; i<terminal_bones.size()-1 ; i++){
         for(int j=i+1 ; j<terminal_bones.size() ; j++){
-            std::vector<int> body_line;
+            body_line bodyline;
             std::vector<int> left;
             int node = terminal_bones[i];
             while(node != 0){//go back until the root node
@@ -151,7 +156,7 @@ void scene_exercise::compute_body_lines(){
             node = terminal_bones[j];
             int meeting_node;
             bool stop = false;
-            while(node != 0 && !stop){//go back until the root node
+            while(node != 0 && !stop){//go back until the meeting node
                 right.push_back(node);
                 node = skeleton.connectivity[node].parent;
                 for(int n : left){
@@ -163,16 +168,92 @@ void scene_exercise::compute_body_lines(){
                 }
             }
             for(int n : left){
+                bodyline.bones.push_back(n);
                 if(n==meeting_node) //we add the nodes until the meeting point and we discard the portion between the meeting point and the root node
                     break;
-                body_line.push_back(n);
             }
-            for(int n : right)
-                body_line.push_back(n);//no filter needed here, since we stopped adding nodes at the meeting point
-            body_lines.push_back(body_line);
+            bodyline.root = meeting_node;//the last index we added was that of the root node
+            for(int i=right.size()-1 ; i>=0 ; i--) // reverse order, so the bodyline is ordered from one end to the other
+                bodyline.bones.push_back(right[i]);//no filter needed here, since we stopped adding nodes at the meeting point
+            body_lines.push_back(bodyline);
         }
     }
     std::cout << "Done. " << body_lines.size() << " body lines found." << std::endl;
+}
+
+void scene_exercise::compute_position_energy(const scene_structure& scene,
+                                             const std::vector<int> bodyline,
+                                             const std::vector<joint_geometry>& skeleton_geometry,
+                                             const std::vector<joint_connectivity>& skeleton_connectivity){
+    mat4 Proj = scene.camera.perspective.matrix();
+    mat4 View = scene.camera.view_matrix();
+    mat4 Pvp = Proj * View;
+
+}
+
+void scene_exercise::compute_body_line_warping(body_line &bodyline){
+    bodyline.S.clear();
+    float S = 0.0f;
+    bodyline.S.push_back(S);
+    for(int bone : bodyline.bones){
+        if(bone != bodyline.root){
+            vec3 p0 = skeleton.rest_pose[bone].p;
+            vec3 p1 = skeleton.rest_pose[skeleton.connectivity[bone].parent].p;
+            S += norm(p1-p0); //size of the segment
+            bodyline.S.push_back(S);
+        }
+    }
+    /*
+    for(int i=0 ; i<bodyline.S.size() ; i++){
+        bodyline.S[i] /= S;//normalization
+    }
+    */
+}
+
+void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& global){
+    body_line bodyline = body_lines[current_body_line];
+    compute_body_line_warping(bodyline);
+    std::vector<vec3> target_points;
+    float s0 = 0.0f;
+    float s1;
+    vec3 p0 = hermit(s0, interpolated_spline);
+    vec3 p1;
+    float real_dist, target_dist;
+    float step = 0.001f;
+
+    vec3 xr;
+    target_points.push_back(p0);
+    for(int i=0 ; i<bodyline.bones.size()-1 ; i++){
+        if(bodyline.bones[i] == bodyline.root){
+            xr = p0 - global[bodyline.root].p;
+        }
+        global[bodyline.bones[i]].p = p0;
+        //compute the next bone position
+        s1 = s0 + step;
+        p1 = hermit(s1, interpolated_spline);
+        target_dist = bodyline.S[i+1] - bodyline.S[i];
+        real_dist = norm(p1-p0);
+        while(real_dist<target_dist){
+            s1 += step;
+            p1 = hermit(s1, interpolated_spline);
+            real_dist = norm(p1-p0);
+        }
+        target_points.push_back(p1);
+        p0=p1;
+        s0=s1;
+    }
+    global[bodyline.bones[bodyline.bones.size()-1]].p = p0;
+    for(int i=0 ; i<global.size() ; i++){
+        bool inChain = false;
+        for(int bone : bodyline.bones){
+            if(bone == i){
+                inChain = true;
+                break;
+            }
+        }
+        if(!inChain)
+            global[i].p += xr;
+    }
 }
 
 std::vector<joint_geometry> interpolate_skeleton_at_time(float time, const std::vector< std::vector<joint_geometry_time> >& animation)
@@ -204,10 +285,8 @@ std::vector<joint_geometry> interpolate_skeleton_at_time(float time, const std::
         // Compute correct interpolation of joint geometry
         // (the following code corresponds to nearest neighbors, not to a smooth interpolation)
         const joint_geometry current_geometry = joint_anim[k_current].geometry;
-
         skeleton[k_joint] = current_geometry;
     }
-
     return skeleton;
 }
 
@@ -382,7 +461,7 @@ void display_joints(const std::vector<joint_geometry>& skeleton_geometry,
     }
 }
 
-void display_bodyline(const std::vector<int> bodyline,
+void display_bodyline(body_line bodyline,
                       const std::vector<joint_geometry>& skeleton_geometry,
                       const std::vector<joint_connectivity>& skeleton_connectivity,
                       const std::map<std::string,GLuint>& shaders,
@@ -390,7 +469,7 @@ void display_bodyline(const std::vector<int> bodyline,
                       segment_drawable_immediate_mode& segment_drawer)
 {
     const size_t N = skeleton_geometry.size();
-    for(size_t k : bodyline)
+    for(size_t k : bodyline.bones)
     {
         int parent = skeleton_connectivity[k].parent;
         const vec3& p1 = skeleton_geometry[parent].p;
@@ -401,7 +480,6 @@ void display_bodyline(const std::vector<int> bodyline,
     }
 }
 
-
 void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_structure& scene, gui_structure& )
 {
     timer.update();
@@ -411,7 +489,7 @@ void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_str
     const auto skeleton_geometry_local  = interpolate_skeleton_at_time(t, skeleton.anim);
     const auto skeleton_rest_pose = local_to_global(skeleton.rest_pose, skeleton.connectivity);
     auto skeleton_current = local_to_global(skeleton_geometry_local, skeleton.connectivity);
-
+    auto animated_skeleton = local_to_global(skeleton.rest_pose, skeleton.connectivity);;
     if(gui_param.display_rest_pose)
         skeleton_current = skeleton_rest_pose;
 
@@ -425,12 +503,10 @@ void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_str
         current_body_line = (current_body_line+1)%body_lines.size();
         scene.update_body_line = false;
     }
-    display_bodyline(body_lines[current_body_line], skeleton_current, skeleton.connectivity, shaders, scene, segment_drawer);
 
     //curve.draw(shaders["mesh"],scene.camera);
     //curve1.draw(shaders["mesh"],scene.camera);
-
-
+    /*
     if(gui_param.display_skeleton_bones)
         display_skeleton(skeleton_current, skeleton.connectivity, shaders, scene, segment_drawer);
     if(gui_param.display_skeleton_joints)
@@ -444,6 +520,7 @@ void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_str
         glPolygonOffset( 1.0, 1.0 );
         character_visual.draw(shaders["wireframe"],scene.camera);
     }
+    */
 
     if(scene.update_curve){
         if(two_splines)
@@ -465,8 +542,12 @@ void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_str
     //display the user's stroke
     input_stroke.draw(shaders["mesh"], scene.camera);
     //if possible, diplay the interpolated spline
-    if(!current_spline.empty())
+    if(!current_spline.empty()){
         interpolated_LOA.draw(shaders["mesh"], scene.camera);
+        compute_body_line_position(animated_skeleton);
+    }
+    display_bodyline(body_lines[current_body_line], animated_skeleton, skeleton.connectivity, shaders, scene, segment_drawer);
+    //display_skeleton(animated_skeleton, skeleton.connectivity, shaders, scene, segment_drawer);
 }
 
 
