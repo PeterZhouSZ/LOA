@@ -16,11 +16,11 @@ std::vector<joint_connectivity> read_skeleton_connectivity(const std::string& fi
 std::vector<std::vector<skinning_influence> > read_skinning_influence(const std::string& filename);
 
 
-vec3 hermit(float s, vec3 x0, vec3 x1, vec3 t0, vec3 t1){
+vec3 scene_exercise::hermit(float s, vec3 x0, vec3 x1, vec3 t0, vec3 t1){
     return pow(1-s,2)*(x0 + s*(t0 + 2*x0)) + pow(s,2)*(x1 - (1-s)*(t1 - 2*x1));
 }
 
-float dist(std::vector<vec3> line, vec3 t0, vec3 t1){
+float scene_exercise::dist(std::vector<vec3> line, vec3 t0, vec3 t1){
     vec3 x0=line[0], x1=line[line.size()-1];
     float d = 0;
     for (int i=0; i<line.size(); i++){
@@ -30,7 +30,7 @@ float dist(std::vector<vec3> line, vec3 t0, vec3 t1){
     return d;
 }
 
-vec3 dist_grad_t0(std::vector<vec3> line, vec3 t0, vec3 t1){
+vec3 scene_exercise::dist_grad_t0(std::vector<vec3> line, vec3 t0, vec3 t1){
     vec3 x0=line[0], x1=line[line.size()-1];
     vec3 grad0(0,0,0);
     for (int i=0; i<line.size(); i++){
@@ -44,7 +44,7 @@ vec3 dist_grad_t0(std::vector<vec3> line, vec3 t0, vec3 t1){
     return grad0;
 }
 
-vec3 dist_grad_t1(std::vector<vec3> line, vec3 t0, vec3 t1){
+vec3 scene_exercise::dist_grad_t1(std::vector<vec3> line, vec3 t0, vec3 t1){
     vec3 x0=line[0], x1=line[line.size()-1];
     vec3 grad1(0,0,0);
     for (int i=0; i<line.size(); i++){
@@ -58,15 +58,15 @@ vec3 dist_grad_t1(std::vector<vec3> line, vec3 t0, vec3 t1){
     return grad1;
 }
 
-std::vector<vec3> fit_LOA(std::vector<vec3> line){
+std::vector<vec3> scene_exercise::fit_LOA(std::vector<vec3> line){
    vec3 t0(2,0,0), t1(2,2,0);
    float d = dist(line, t0, t1);
    float dpred = d+1;
    vec3 grad0=dist_grad_t0(line,t0,t1), grad1=dist_grad_t1(line,t0,t1);
-   while ((dpred-d) > 0.01){
+   while ((dpred-d) > epsilon){
        //gradient descent
-       t0 = t0 - 0.1*grad0;
-       t1 = t1 - 0.1*grad1;
+       t0 = t0 - alpha*grad0;
+       t1 = t1 - alpha*grad1;
        grad0=dist_grad_t0(line,t0,t1);
        grad1=dist_grad_t1(line,t0,t1);
        dpred=d;
@@ -75,7 +75,7 @@ std::vector<vec3> fit_LOA(std::vector<vec3> line){
    return std::vector<vec3>({t0,t1});
 }
 
-std::vector<vec3> interpolate_user_input(std::vector<vec3> line){
+std::vector<vec3> scene_exercise::interpolate_user_input(std::vector<vec3> line){
     std::vector<vec3> result = fit_LOA(line);
     vec3 x0=line[0], x1=line[line.size()-1], t0=result[0], t1=result[1];
     std::vector<vec3> interpolated_line;

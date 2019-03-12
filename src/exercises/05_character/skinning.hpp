@@ -106,7 +106,17 @@ struct scene_exercise : base_scene_exercise
     vcl::curve_drawable interpolated_LOA;
     bool two_splines = true; //wether two use 1 or 2 plines to fit the user's input
 
+    //Spline interppolation
+    float alpha = 0.1f; //gradient descent rate
+    float epsilon = 0.001f; //precision
     std::vector<vcl::vec3> current_spline;
+    //interpolation methods
+    vcl::vec3 hermit(float s, vcl::vec3 x0, vcl::vec3 x1, vcl::vec3 t0, vcl::vec3 t1);//evaluate given Hermit polynomial at s
+    vcl::vec3 dist_grad_t0(std::vector<vcl::vec3> line, vcl::vec3 t0, vcl::vec3 t1);
+    vcl::vec3 dist_grad_t1(std::vector<vcl::vec3> line, vcl::vec3 t0, vcl::vec3 t1);
+    std::vector<vcl::vec3> fit_LOA(std::vector<vcl::vec3> line);
+    std::vector<vcl::vec3> interpolate_user_input(std::vector<vcl::vec3> line);
+    float dist(std::vector<vcl::vec3> line, vcl::vec3 t0, vcl::vec3 t1);
     //body lines
     void compute_body_lines();
     std::vector<std::vector<int>> body_lines;
