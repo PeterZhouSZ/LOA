@@ -465,23 +465,12 @@ void display_joints(const std::vector<joint_geometry>& skeleton_geometry,
 
 void display_bodyline(body_line bodyline,
                       const std::vector<joint_geometry>& skeleton_geometry,
-                      const std::vector<joint_connectivity>& skeleton_connectivity,
                       const std::map<std::string,GLuint>& shaders,
                       const scene_structure& scene,
-                      segment_drawable_immediate_mode& segment_drawer,
                       mesh_drawable& sphere)
 {
-    const size_t N = skeleton_geometry.size();
     for(size_t k : bodyline.bones)
     {
-        /*
-        int parent = skeleton_connectivity[k].parent;
-        const vec3& p1 = skeleton_geometry[parent].p;
-        const vec3& p2 = skeleton_geometry[k].p;
-        segment_drawer.uniform_parameter.p1 = p1;
-        segment_drawer.uniform_parameter.p2 = p2;
-        segment_drawer.draw(shaders.at("segment_immediate_mode"),scene.camera);
-        */
         const vec3& p = skeleton_geometry[k].p;
         sphere.uniform_parameter.translation = p;
         sphere.draw(shaders.at("mesh"),scene.camera);
@@ -542,7 +531,7 @@ void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_str
         character_visual.draw(shaders["wireframe"],scene.camera);
     }
     if(gui_param.display_bodyline)
-        display_bodyline(body_lines[current_body_line], skeleton_current, skeleton.connectivity, shaders, scene, segment_drawer, sphere);
+        display_bodyline(body_lines[current_body_line], skeleton_current, shaders, scene, sphere);
 }
 
 
@@ -577,11 +566,8 @@ void scene_exercise::set_gui()
     }
     */
     // Start and stop animation
-    if (ImGui::Button("Stop"))
-        timer.stop();
-    ImGui::SameLine();
-    if (ImGui::Button("Start"))
-        timer.start();
+    if (ImGui::Button("Reset"))
+        current_pose = rest_pose;
 }
 
 
