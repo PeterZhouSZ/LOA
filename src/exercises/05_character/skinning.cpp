@@ -21,7 +21,7 @@ vec3 scene_exercise::hermit(float s, vec3 x0, vec3 x1, vec3 t0, vec3 t1){
     return pow(1-s,2)*(x0 + s*(t0 + 2*x0)) + pow(s,2)*(x1 - (1-s)*(t1 - 2*x1));
 }
 
-vec3 scene_exercise::hermit(float s, hermit_spline spline){
+vec3 scene_exercise::hermit(float s, single_spline spline){
     return hermit(s, spline.p0, spline.p1, spline.t0, spline.t1);
 }
 
@@ -88,7 +88,12 @@ std::vector<vec3> scene_exercise::interpolate_user_input(std::vector<vec3> line)
         float s = float(i)/(line.size()-1);
         interpolated_line.push_back(hermit(s, x0, x1, t0, t1));
     }
-    interpolated_spline = hermit_spline(x0, x1, t0, t1);
+    if (two_splines){
+        if (interpolated_spline.first) interpolated_spline.spl1 = single_spline(x0, x1, t0, t1);
+        else interpolated_spline.spl2 = single_spline(x0, x1, t0, t1);
+    }
+    else
+        interpolated_spline.spl1 = single_spline(x0, x1, t0, t1);
     return interpolated_line;
 }
 
@@ -219,11 +224,11 @@ void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& glo
     std::vector<vec3> target_points;
     float s0 = 0.0f;
     float s1;
-    vec3 p0 = hermit(s0, interpolated_spline);
+    vec3 p0 = hermit(s0, interpolated_spline.spl1);
     vec3 p1;
     float real_dist, target_dist;
     float step = 0.001f;
-
+    single_spline current_spline =  interpolated_spline.spl1;
     vec3 xr;
     target_points.push_back(p0);
     for(int i=0 ; i<bodyline.bones.size()-1 ; i++){
@@ -233,13 +238,29 @@ void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& glo
         global[bodyline.bones[i]].p = p0;
         //compute the next bone position
         s1 = s0 + step;
-        p1 = hermit(s1, interpolated_spline);
+        p1 = hermit(s1, current_spline);
         target_dist = bodyline.S[i+1] - bodyline.S[i];
         real_dist = norm(p1-p0);
-        while(real_dist<target_dist){
-            s1 += step;
-            p1 = hermit(s1, interpolated_spline);
-            real_dist = norm(p1-p0);
+        if (two_splines){
+            while(real_dist<target_dist && norm(p1-interpolated_spline.middle_pt)> 0.01){
+                s1 += step;
+                p1 = hermit(s1, current_spline);
+                real_dist = norm(p1-p0);
+            }
+            if(norm(p1-interpolated_spline.middle_pt) < 0.01){
+                current_spline = interpolated_spline.spl2;
+                while(real_dist<target_dist){
+                    s1 += step;
+                    p1 = hermit(s1, current_spline);
+                    real_dist = norm(p1-p0);
+                }
+            }
+        } else {
+            while(real_dist<target_dist){
+                s1 += step;
+                p1 = hermit(s1, current_spline);
+                real_dist = norm(p1-p0);
+            }
         }
         target_points.push_back(p1);
         p0=p1;
@@ -494,18 +515,21 @@ void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_str
         current_body_line = (current_body_line+1)%body_lines.size();
         scene.update_body_line = false;
     }
+
     if(scene.update_curve){
-        if(gui_param.two_spline)
-        {
+        interpolated_spline = spline(two_splines, true);
+        if(interpolated_spline.two_splines){
             std::vector<vec3> s1, s2;
             for(size_t j=0 ; j<=scene.draw_points.size()/2 ; j++)
                 s1.push_back(scene.draw_points[j]);
             for(size_t j=scene.draw_points.size()/2 ; j<scene.draw_points.size() ; j++)
                 s2.push_back(scene.draw_points[j]);
             current_spline = interpolate_user_input(s1);
+            interpolated_spline.middle_pt = current_spline[current_spline.size()-1];
+            interpolated_spline.first = false;
             for(vcl::vec3 v : interpolate_user_input(s2))
                 current_spline.push_back(v);
-        }else
+        } else
         current_spline = interpolate_user_input(scene.draw_points);
         compute_body_line_position(current_pose);
         scene.update_curve = false;

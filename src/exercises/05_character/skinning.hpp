@@ -93,11 +93,22 @@ struct body_line{
     std::vector<float> R; //bones' rotations
 };
 
-struct hermit_spline{
-    hermit_spline(vcl::vec3 p, vcl::vec3 q, vcl::vec3 t, vcl::vec3 s):p0(p),p1(q),t0(t),t1(s){}
-    hermit_spline(){}
+struct single_spline{
+    single_spline(vcl::vec3 p, vcl::vec3 q, vcl::vec3 t, vcl::vec3 s):p0(p),p1(q),t0(t),t1(s){}
+    single_spline(){}
     vcl::vec3 p0, p1;
     vcl::vec3 t0,t1;
+};
+
+struct spline{
+    spline(bool two_spl, bool first, single_spline spl1, single_spline spl2):two_splines(two_spl),first(first),spl1(spl1),spl2(spl2){}
+    spline(bool two_spl, bool first):two_splines(two_spl),first(first){}
+    spline(){}
+    bool two_splines;
+    bool first;
+    vcl::vec3 middle_pt;
+    single_spline spl1;
+    single_spline spl2;
 };
 
 struct scene_exercise : base_scene_exercise
@@ -129,15 +140,18 @@ struct scene_exercise : base_scene_exercise
     std::vector<vcl::vec3> current_spline;
     vcl::curve_drawable input_stroke;
     vcl::curve_drawable interpolated_LOA;
+
+    bool two_splines = true; //wether two use 1 or 2 splines to fit the user's input
+
     //interpolation methods
     vcl::vec3 hermit(float s, vcl::vec3 x0, vcl::vec3 x1, vcl::vec3 t0, vcl::vec3 t1);//evaluate given Hermit polynomial at s
-    vcl::vec3 hermit(float s, hermit_spline spline);
+    vcl::vec3 hermit(float s, single_spline spline);
     vcl::vec3 dist_grad_t0(std::vector<vcl::vec3> line, vcl::vec3 t0, vcl::vec3 t1);
     vcl::vec3 dist_grad_t1(std::vector<vcl::vec3> line, vcl::vec3 t0, vcl::vec3 t1);
     std::vector<vcl::vec3> fit_LOA(std::vector<vcl::vec3> line);
     std::vector<vcl::vec3> interpolate_user_input(std::vector<vcl::vec3> line);
     float dist(std::vector<vcl::vec3> line, vcl::vec3 t0, vcl::vec3 t1);
-    hermit_spline interpolated_spline;
+    spline interpolated_spline;
     //body lines
     void compute_body_lines();
     std::vector<body_line> body_lines;
