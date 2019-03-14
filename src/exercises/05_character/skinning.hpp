@@ -141,8 +141,6 @@ struct scene_exercise : base_scene_exercise
     vcl::curve_drawable input_stroke;
     vcl::curve_drawable interpolated_LOA;
 
-    bool two_splines = true; //wether two use 1 or 2 splines to fit the user's input
-
     //interpolation methods
     vcl::vec3 hermit(float s, vcl::vec3 x0, vcl::vec3 x1, vcl::vec3 t0, vcl::vec3 t1);//evaluate given Hermit polynomial at s
     vcl::vec3 hermit(float s, single_spline spline);
@@ -161,7 +159,8 @@ struct scene_exercise : base_scene_exercise
     void compute_position_energy(const scene_structure& scene, const std::vector<int> bodyline, const std::vector<joint_geometry>& skeleton_geometry,
                                  const std::vector<joint_connectivity>& skeleton_connectivity);
     void compute_body_line_warping(body_line &bodyline);
-    void compute_body_line_position(std::vector<joint_geometry> &global);
+    void compute_body_line_position(std::vector<joint_geometry> &global,
+                                    const std::vector<joint_connectivity> &connectivity);
 };
 
 

@@ -88,7 +88,7 @@ std::vector<vec3> scene_exercise::interpolate_user_input(std::vector<vec3> line)
         float s = float(i)/(line.size()-1);
         interpolated_line.push_back(hermit(s, x0, x1, t0, t1));
     }
-    if (two_splines){
+    if (gui_param.two_spline){
         if (interpolated_spline.first) interpolated_spline.spl1 = single_spline(x0, x1, t0, t1);
         else interpolated_spline.spl2 = single_spline(x0, x1, t0, t1);
     }
@@ -205,23 +205,18 @@ void scene_exercise::compute_body_line_warping(body_line &bodyline){
     bodyline.S.push_back(S);
     for(int bone : bodyline.bones){
         if(bone != bodyline.root){
-            vec3 p0 = skeleton.rest_pose[bone].p;
-            vec3 p1 = skeleton.rest_pose[skeleton.connectivity[bone].parent].p;
+            vec3 p0 = rest_pose[bone].p;
+            vec3 p1 = rest_pose[skeleton.connectivity[bone].parent].p;
             S += norm(p1-p0); //size of the segment
             bodyline.S.push_back(S);
         }
     }
-    /*
-    for(int i=0 ; i<bodyline.S.size() ; i++){
-        bodyline.S[i] /= S;//normalization
-    }
-    */
 }
 
-void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& global){
+void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& global,
+                                                const std::vector<joint_connectivity>& connectivity){
     body_line bodyline = body_lines[current_body_line];
     compute_body_line_warping(bodyline);
-    std::vector<vec3> target_points;
     float s0 = 0.0f;
     float s1;
     vec3 p0 = hermit(s0, interpolated_spline.spl1);
@@ -230,25 +225,28 @@ void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& glo
     float step = 0.001f;
     single_spline current_spline =  interpolated_spline.spl1;
     vec3 xr;
-    target_points.push_back(p0);
+    //translation array, used to compute that of each bone in the body lines (the other bones will be at 0
+    std::vector<vec3> translations;
+    for(int i=0 ; i<global.size() ; i++)
+        translations.push_back(vec3(0.0f,0.0f,0.0f));
+
     for(int i=0 ; i<bodyline.bones.size()-1 ; i++){
-        if(bodyline.bones[i] == bodyline.root){
-            xr = p0 - global[bodyline.root].p;
-        }
+        translations[bodyline.bones[i]] = p0-global[bodyline.bones[i]].p;
         global[bodyline.bones[i]].p = p0;
         //compute the next bone position
         s1 = s0 + step;
         p1 = hermit(s1, current_spline);
         target_dist = bodyline.S[i+1] - bodyline.S[i];
         real_dist = norm(p1-p0);
-        if (two_splines){
-            while(real_dist<target_dist && norm(p1-interpolated_spline.middle_pt)> 0.01){
+        if (gui_param.two_spline){
+            while(real_dist<target_dist && norm(p1-interpolated_spline.middle_pt) > 0.001f){
                 s1 += step;
                 p1 = hermit(s1, current_spline);
                 real_dist = norm(p1-p0);
             }
-            if(norm(p1-interpolated_spline.middle_pt) < 0.01){
+            if(norm(p1-interpolated_spline.middle_pt) < 0.001f){
                 current_spline = interpolated_spline.spl2;
+                s1 = 0.0f;
                 while(real_dist<target_dist){
                     s1 += step;
                     p1 = hermit(s1, current_spline);
@@ -262,21 +260,30 @@ void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& glo
                 real_dist = norm(p1-p0);
             }
         }
-        target_points.push_back(p1);
         p0=p1;
         s0=s1;
     }
+    translations[bodyline.bones.size()-1] = p0-global[bodyline.bones[bodyline.bones.size()-1]].p;
     global[bodyline.bones[bodyline.bones.size()-1]].p = p0;
+    std::vector<bool> in_chain;
+    for(int i=0 ; i<global.size() ; i++)
+        in_chain.push_back(false);
+    for(int bone : bodyline.bones)
+        in_chain[bone] = true;
+
     for(int i=0 ; i<global.size() ; i++){
-        bool inChain = false;
-        for(int bone : bodyline.bones){
-            if(bone == i){
-                inChain = true;
-                break;
+        if(!in_chain[i]){
+            //we look for the closest parent in the body line
+            int node=i;
+            while(node!=0 && !in_chain[node]){
+                node = connectivity[node].parent;
             }
+            if(node==0)
+                global[i].p += translations[bodyline.root];
+            else
+                global[i].p += translations[node];
+
         }
-        if(!inChain)
-            global[i].p += xr;
     }
 }
 
@@ -517,8 +524,8 @@ void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_str
     }
 
     if(scene.update_curve){
-        interpolated_spline = spline(two_splines, true);
-        if(interpolated_spline.two_splines){
+        interpolated_spline = spline(gui_param.two_spline, true);
+        if(gui_param.two_spline){
             std::vector<vec3> s1, s2;
             for(size_t j=0 ; j<=scene.draw_points.size()/2 ; j++)
                 s1.push_back(scene.draw_points[j]);
@@ -531,7 +538,7 @@ void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_str
                 current_spline.push_back(v);
         } else
         current_spline = interpolate_user_input(scene.draw_points);
-        compute_body_line_position(current_pose);
+        compute_body_line_position(current_pose, skeleton.connectivity);
         scene.update_curve = false;
     }
 
