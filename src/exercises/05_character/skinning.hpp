@@ -74,10 +74,14 @@ enum gui_parameters_display_type {display_character, display_cylinder};
 struct gui_parameters
 {
     bool display_skeleton_bones;
-    bool display_skeleton_joints;
     bool display_mesh;
     bool display_rest_pose;
     bool display_wireframe;
+    //LOA params
+    bool display_spline;
+    bool display_input;
+    bool display_bodyline;
+    bool two_spline;
     int display_type;
 };
 
@@ -117,13 +121,14 @@ struct scene_exercise : base_scene_exercise
 
     vcl::timer_interval timer;
 
+    std::vector<joint_geometry> rest_pose;
+    std::vector<joint_geometry> current_pose;
     //Spline interppolation
     float alpha = 0.1f; //gradient descent rate
     float epsilon = 0.001f; //precision
     std::vector<vcl::vec3> current_spline;
     vcl::curve_drawable input_stroke;
     vcl::curve_drawable interpolated_LOA;
-    bool two_splines = false; //wether two use 1 or 2 splines to fit the user's input
     //interpolation methods
     vcl::vec3 hermit(float s, vcl::vec3 x0, vcl::vec3 x1, vcl::vec3 t0, vcl::vec3 t1);//evaluate given Hermit polynomial at s
     vcl::vec3 hermit(float s, hermit_spline spline);
