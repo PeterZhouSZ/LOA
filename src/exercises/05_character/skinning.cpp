@@ -204,6 +204,7 @@ void scene_exercise::compute_body_line_warping(body_line &bodyline){
 
 void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& global,
                                                 const std::vector<joint_connectivity>& connectivity){
+
     float s0 = 0.0f;
     float s1;
     vec3 p0 = hermit(s0, interpolated_spline.spl1);
@@ -213,6 +214,8 @@ void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& glo
     single_spline current_spline =  interpolated_spline.spl1;
 
     body_line bodyline = body_lines[current_body_line];
+    int N = global.size();//size of the skeleton
+    int M = bodyline.bones.size();//size of the chosen body line
     vec3 spl0 = interpolated_spline.spl1.p0;
     //find which end of the bodyline is closest to the LOA
     float d0 = norm(spl0-global[bodyline.bones[0]].p);
@@ -220,16 +223,16 @@ void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& glo
     if(d0>d2){
         //the beginning of the LOA and that of the bodyline are inverted, we need to invert the body line
         std::vector<int> inverted_bodyline;
-        for(int bone=bodyline.bones.size()-1 ; bone>=0 ; bone--)
+        for(int bone=M-1 ; bone>=0 ; bone--)
             inverted_bodyline.push_back(bodyline.bones[bone]);
         bodyline.bones = inverted_bodyline;
     }
     compute_body_line_warping(bodyline);
     //translation array, used to compute that of each bone in the body lines (the other bones will be translated by the translation of the closest parent in the body line, see below)
     std::vector<vec3> translations;
-    for(int i=0 ; i<global.size() ; i++)
+    for(int i=0 ; i<N ; i++)
         translations.push_back(vec3(0.0f,0.0f,0.0f));
-    for(int i=0 ; i<bodyline.bones.size()-1 ; i++){
+    for(int i=0 ; i<M-1 ; i++){
         translations[bodyline.bones[i]] = p0-global[bodyline.bones[i]].p;
         //compute the next bone position
         s1 = s0 + step;
@@ -261,15 +264,21 @@ void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& glo
         p0=p1;
         s0=s1;
     }
-    translations[bodyline.bones[bodyline.bones.size()-1]] = p0-global[bodyline.bones[bodyline.bones.size()-1]].p;
+    translations[bodyline.bones[M-1]] = p0-global[bodyline.bones[M-1]].p;
+    //project the translations on the body line plane
+    vec3 x = normalize(interpolated_spline.spl1.t0);
+    vec3 y = normalize(cross(x, cross(x, interpolated_spline.spl1.t1)));//the tangents are always in the desired plane
+    for (int i=0 ; i<N ; i++){
+        translations[i] = dot(x, translations[i])*x + dot(y, translations[i])*y;
+    }
     //determine which bones are in the bodyline
     std::vector<bool> in_chain;
-    for(int i=0 ; i<global.size() ; i++)
+    for(int i=0 ; i<N ; i++)
         in_chain.push_back(false);
     for(int bone : bodyline.bones)
         in_chain[bone] = true;
     //translate all bones accordingly
-    for(int i=0 ; i<global.size() ; i++){
+    for(int i=0 ; i<N ; i++){
         int node=i;
         if(!in_chain[i]){
             //we look for the closest parent in the body line
@@ -283,7 +292,7 @@ void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& glo
     }
     //compute the quaternion rotations for the skinning
     global[0].r = rest_pose[0].r;
-    for(int i=1 ; i<global.size() ; i++){
+    for(int i=1 ; i<N ; i++){
         int parent = connectivity[i].parent;
         global[parent].r = compute_rotation(rest_pose[i].p - rest_pose[parent].p, global[i].p-global[parent].p) * rest_pose[parent].r;
     }
