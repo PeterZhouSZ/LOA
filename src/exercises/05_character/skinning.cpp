@@ -285,13 +285,26 @@ void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& glo
         if(!in_chain[i]){
             //we look for the closest parent in the body line
             int node=i;
-            while(!in_chain[node]){
+            while(!in_chain[node] && node!=0)
                 node = connectivity[node].parent;
-                if(node==0)
-                    node = bodyline.root;
-            }
+            if(node==0)
+                node = bodyline.root;
             global[i].p += translations[node];
         }
+    }
+    std::vector<joint_geometry> local;
+    global[0].r = rest_pose[0].r;
+    for(int i=1 ; i<global.size() ; i++){
+        int parent = connectivity[i].parent;
+        //global[i].r = global[parent].r * local[i].r;
+        if(in_chain[i]){
+            std::cout<<compute_rotation(rest_pose[i].p - rest_pose[parent].p, global[i].p-global[parent].p).apply(rest_pose[parent].r.apply(skeleton.rest_pose[i].p))<<std::endl;
+            std::cout<<rest_pose[i].p - rest_pose[parent].p<<std::endl;
+            std::cout<<global[i].p-global[parent].p<<std::endl;
+            std::cout<<"------------------------------"<<std::endl;
+        }
+        global[parent].r = compute_rotation(rest_pose[i].p - rest_pose[parent].p, global[i].p-global[parent].p) * rest_pose[parent].r;
+        //global[parent].r = compute_rotation(skeleton.rest_pose[i].p, global[i].p-global[parent].p);
     }
 }
 
@@ -334,10 +347,33 @@ void compute_skinning(skinning_structure& skinning, const std::vector<joint_geom
     const size_t N_vertex = skinning.rest_pose.size();
     for(size_t k=0; k<N_vertex; ++k)
     {
-        // TO DO ...
-        // Compute skinning deformation
-        // Change the following line to compute the deformed position from skinning relation
-        skinning.deformed.position[k] = skinning.rest_pose[k];
+        const std::vector<skinning_influence>& influence = skinning.influence[k];
+
+        // Transformation matrix for skinning
+        mat4 M = mat4::zero();
+        for(size_t kb=0; kb<influence.size(); ++kb) // Loop over influencing bones
+        {
+            const int idx = influence[kb].bone;
+            const float w = influence[kb].weight;
+
+            const quaternion& r = skeleton_current[idx].r;
+            const vec3& p = skeleton_current[idx].p;
+            const quaternion& r0 = skeleton_rest_pose[idx].r;
+            const vec3& p0 = skeleton_rest_pose[idx].p;
+
+            // Convert rotation/translation to matrix
+            mat4 T = mat4::from_mat3_vec3(quaternion_to_mat3(r), p);
+            mat4 T0_inv = mat4::from_mat3_vec3(quaternion_to_mat3(conjugate(r0)), conjugate(r0).apply(-p0)); // inverse
+
+            // Skinning
+            M += w*T*T0_inv;
+        }
+
+        // Apply skinning transform on vertex
+        const vec3& p0 = skinning.rest_pose[k];
+        const vec4 p1 = M * vec4(p0.x,p0.y,p0.z,1.0f);
+        skinning.deformed.position[k] = {p1.x,p1.y,p1.z};
+
     }
 }
 
@@ -842,7 +878,16 @@ quaternion slerp(quaternion q1, const quaternion& q2, float t)
     return q;
 }
 
-
+quaternion compute_rotation(const vec3 &v1, const vec3 &v2){
+    float cos_theta = dot(normalize(v1), normalize(v2));
+    float angle = acos(cos_theta);
+    vec3 w = cross(v1, v2);
+    if(norm(w) < 0.0001f)
+        angle = 0.0f;
+    else
+        w = normalize(w);
+    return quaternion::axis_angle(w, angle);
+}
 
 mat3 quaternion_to_mat3(const quaternion& q)
 {

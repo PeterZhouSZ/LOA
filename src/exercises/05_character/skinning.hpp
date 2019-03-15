@@ -23,7 +23,7 @@ quaternion operator+(const quaternion& q1, const quaternion& q2);
 quaternion operator*(const quaternion& q1,const quaternion& q2);
 quaternion conjugate(const quaternion& q);
 quaternion slerp(quaternion q1, const quaternion& q2, float t);
-
+quaternion compute_rotation(const vcl::vec3 &v1, const vcl::vec3 &v2);
 
 // Connectivity information of a joint in the hierarchy
 //  Store parent index, and the current name
