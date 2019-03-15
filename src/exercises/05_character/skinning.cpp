@@ -1,4 +1,3 @@
-
 #include "skinning.hpp"
 
 #include <random>
@@ -215,8 +214,6 @@ void scene_exercise::compute_body_line_warping(body_line &bodyline){
 
 void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& global,
                                                 const std::vector<joint_connectivity>& connectivity){
-    body_line bodyline = body_lines[current_body_line];
-    compute_body_line_warping(bodyline);
     float s0 = 0.0f;
     float s1;
     vec3 p0 = hermit(s0, interpolated_spline.spl1);
@@ -230,6 +227,19 @@ void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& glo
     for(int i=0 ; i<global.size() ; i++)
         translations.push_back(vec3(0.0f,0.0f,0.0f));
 
+    body_line bodyline = body_lines[current_body_line];
+    vec3 spl0 = interpolated_spline.spl1.p0;
+    //find which is the closest point
+    float d0 = norm(spl0-global[bodyline.bones[0]].p);
+    float d2 = norm(spl0-global[bodyline.bones[bodyline.bones.size()-1]].p);
+    if(d0>d2){
+        //the beginning of the LOA and that of the bodyline are inverted, we need to invert the body line
+        std::vector<int> inverted_bodyline;
+        for(int bone=bodyline.bones.size()-1 ; bone>=0 ; bone--)
+            inverted_bodyline.push_back(bodyline.bones[bone]);
+        bodyline.bones = inverted_bodyline;
+    }
+    compute_body_line_warping(bodyline);
     for(int i=0 ; i<bodyline.bones.size()-1 ; i++){
         translations[bodyline.bones[i]] = p0-global[bodyline.bones[i]].p;
         global[bodyline.bones[i]].p = p0;
@@ -270,19 +280,17 @@ void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& glo
         in_chain.push_back(false);
     for(int bone : bodyline.bones)
         in_chain[bone] = true;
-
+    //std::cout<<bodyline.root<<std::endl;
     for(int i=0 ; i<global.size() ; i++){
         if(!in_chain[i]){
             //we look for the closest parent in the body line
             int node=i;
-            while(node!=0 && !in_chain[node]){
+            while(!in_chain[node]){
                 node = connectivity[node].parent;
+                if(node==0)
+                    node = bodyline.root;
             }
-            if(node==0)
-                global[i].p += translations[bodyline.root];
-            else
-                global[i].p += translations[node];
-
+            global[i].p += translations[node];
         }
     }
 }
@@ -563,6 +571,11 @@ void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_str
     }
     if(gui_param.display_bodyline)
         display_bodyline(body_lines[current_body_line], skeleton_current, shaders, scene, sphere);
+    //debug
+    std::vector<int> debug = {14,22,41};
+    body_line bd;
+    bd.bones = debug;
+    //display_bodyline(bd, skeleton_current, shaders, scene, sphere);
 }
 
 

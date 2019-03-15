@@ -87,7 +87,7 @@ struct gui_parameters
 
 struct body_line{
     std::vector<int> bones; //indices of the bones
-    int root; //index of the root node in bones
+    int root; //index of the root node
     vcl::vec3 xr; //translation of the root node
     std::vector<float> S; //body line coordinates
     std::vector<float> R; //bones' rotations
