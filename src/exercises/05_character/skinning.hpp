@@ -146,21 +146,18 @@ struct scene_exercise : base_scene_exercise
     vcl::vec3 hermit(float s, single_spline spline);
     vcl::vec3 dist_grad_t0(std::vector<vcl::vec3> line, vcl::vec3 t0, vcl::vec3 t1);
     vcl::vec3 dist_grad_t1(std::vector<vcl::vec3> line, vcl::vec3 t0, vcl::vec3 t1);
-    std::vector<vcl::vec3> fit_LOA(std::vector<vcl::vec3> line);
-    std::vector<vcl::vec3> interpolate_user_input(std::vector<vcl::vec3> line);
-    float dist(std::vector<vcl::vec3> line, vcl::vec3 t0, vcl::vec3 t1);
-    spline interpolated_spline;
+    std::vector<vcl::vec3> fit_LOA(std::vector<vcl::vec3> line);//fit a spline to a curve using gradient descent
+    std::vector<vcl::vec3> interpolate_user_input(std::vector<vcl::vec3> line);//fit one or two splines to the user's input
+    float dist(std::vector<vcl::vec3> line, vcl::vec3 t0, vcl::vec3 t1);//distance between a point cloud(curve) and a spline
+    spline interpolated_spline;//The LOA
     //body lines
-    void compute_body_lines();
+    void compute_body_lines();//automatically compute all possible body lines
     std::vector<body_line> body_lines;
     std::vector<int> terminal_bones;
-    int current_body_line = 0;
-    //Energies for computing the pose
-    void compute_position_energy(const scene_structure& scene, const std::vector<int> bodyline, const std::vector<joint_geometry>& skeleton_geometry,
-                                 const std::vector<joint_connectivity>& skeleton_connectivity);
-    void compute_body_line_warping(body_line &bodyline);
-    void compute_body_line_position(std::vector<joint_geometry> &global,
-                                    const std::vector<joint_connectivity> &connectivity);
+    int current_body_line = 0;//id of the selected body line
+    //Methods to compute the pose
+    void compute_body_line_warping(body_line &bodyline);//compute a curved coordinate for the body line
+    void compute_body_line_position(std::vector<joint_geometry> &global, const std::vector<joint_connectivity> &connectivity);//fit the body line to the curve
 };
 
 

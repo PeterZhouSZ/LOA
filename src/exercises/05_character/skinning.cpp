@@ -16,7 +16,7 @@ std::vector<std::vector<skinning_influence> > read_skinning_influence(const std:
 
 std::vector<joint_geometry> local_to_global(const std::vector<joint_geometry>& local, const std::vector<joint_connectivity>& connectivity);
 
-vec3 scene_exercise::hermit(float s, vec3 x0, vec3 x1, vec3 t0, vec3 t1){
+vec3 scene_exercise::hermit(float s, vec3 x0, vec3 x1, vec3 t0, vec3 t1){//evaluate cubic spline at position s
     return pow(1-s,2)*(x0 + s*(t0 + 2*x0)) + pow(s,2)*(x1 - (1-s)*(t1 - 2*x1));
 }
 
@@ -188,16 +188,6 @@ void scene_exercise::compute_body_lines(){
     std::cout << "Done. " << body_lines.size() << " body lines found." << std::endl;
 }
 
-void scene_exercise::compute_position_energy(const scene_structure& scene,
-                                             const std::vector<int> bodyline,
-                                             const std::vector<joint_geometry>& skeleton_geometry,
-                                             const std::vector<joint_connectivity>& skeleton_connectivity){
-    mat4 Proj = scene.camera.perspective.matrix();
-    mat4 View = scene.camera.view_matrix();
-    mat4 Pvp = Proj * View;
-
-}
-
 void scene_exercise::compute_body_line_warping(body_line &bodyline){
     bodyline.S.clear();
     float S = 0.0f;
@@ -224,7 +214,7 @@ void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& glo
 
     body_line bodyline = body_lines[current_body_line];
     vec3 spl0 = interpolated_spline.spl1.p0;
-    //find which is the closest point
+    //find which end of the bodyline is closest to the LOA
     float d0 = norm(spl0-global[bodyline.bones[0]].p);
     float d2 = norm(spl0-global[bodyline.bones[bodyline.bones.size()-1]].p);
     if(d0>d2){
@@ -235,18 +225,17 @@ void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& glo
         bodyline.bones = inverted_bodyline;
     }
     compute_body_line_warping(bodyline);
-    //translation array, used to compute that of each bone in the body lines (the other bones will be at 0
+    //translation array, used to compute that of each bone in the body lines (the other bones will be translated by the translation of the closest parent in the body line, see below)
     std::vector<vec3> translations;
     for(int i=0 ; i<global.size() ; i++)
         translations.push_back(vec3(0.0f,0.0f,0.0f));
     for(int i=0 ; i<bodyline.bones.size()-1 ; i++){
         translations[bodyline.bones[i]] = p0-global[bodyline.bones[i]].p;
-        //global[bodyline.bones[i]].p = p0;
         //compute the next bone position
         s1 = s0 + step;
         p1 = hermit(s1, current_spline);
-        target_dist = bodyline.S[i+1] - bodyline.S[i];
-        real_dist = norm(p1-p0);
+        target_dist = bodyline.S[i+1] - bodyline.S[i];//actual length of the bone
+        real_dist = norm(p1-p0);//length of the chord
         if (gui_param.two_spline){
             while(real_dist<target_dist && s1 < 1.0f-step){
                 s1 += step;
@@ -273,30 +262,26 @@ void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& glo
         s0=s1;
     }
     translations[bodyline.bones[bodyline.bones.size()-1]] = p0-global[bodyline.bones[bodyline.bones.size()-1]].p;
-    //global[bodyline.bones[bodyline.bones.size()-1]].p = p0;
+    //determine which bones are in the bodyline
     std::vector<bool> in_chain;
     for(int i=0 ; i<global.size() ; i++)
         in_chain.push_back(false);
     for(int bone : bodyline.bones)
         in_chain[bone] = true;
-    //std::cout<<bodyline.root<<std::endl;
-    std::vector<int> roots;
+    //translate all bones accordingly
     for(int i=0 ; i<global.size() ; i++){
         int node=i;
         if(!in_chain[i]){
             //we look for the closest parent in the body line
             while(!in_chain[node] && node!=0){
-                //std::cout<< node << std::endl;
                 node = connectivity[node].parent;
             }
-            //std::cout << "-------------------" << std::endl;
-            roots.push_back(node);
             if(node==0)
                 node = bodyline.root;
         }
         global[i].p += translations[node];
     }
-    //quaternion rotation
+    //compute the quaternion rotations for the skinning
     global[0].r = rest_pose[0].r;
     for(int i=1 ; i<global.size() ; i++){
         int parent = connectivity[i].parent;
@@ -414,92 +399,6 @@ void scene_exercise::load_character_data()
     timer.t_max = 0.733f;
 }
 
-void scene_exercise::load_cylinder_data()
-{
-    skeleton.connectivity = { {-1,"joint_0"},
-                              { 0,"joint_1"},
-                              { 1,"joint_2"} };
-
-
-    quaternion q0 = quaternion::axis_angle(normalize(vec3{0,0,1}),0.0f);      // no rotation
-    quaternion q1 = quaternion::axis_angle(normalize(vec3{0,0,1}),3.14f/2.0f); // rotation of pi/2 around z-axis
-
-    joint_geometry g0   = {{0.0f,0.0f,0.0f},q0}; // First joint
-    joint_geometry g1_0 = {{0.5f,0.0f,0.0f},q0}; // Second joint, frame 0
-    joint_geometry g1_1 = {{0.5f,0.0f,0.0f},q1}; // Second joint, frame 1
-    joint_geometry g2   = {{0.5f,0.0f,0.0f},q0}; // Third joint (only used to display bone)
-
-    // Skeleton at rest shape
-    skeleton.rest_pose = { g0, g1_0, g2 };
-
-    // Anim of cylinder skeleton
-    //  Pose 0: straight
-    //  Pose 1: First joint is rotated of pi/2 around z axis
-    //  Pose 2: straight, similar to pose 0
-    std::vector<joint_geometry_time> anim_g0 = {{0,g0},{1,g0},{2,g0}};
-    std::vector<joint_geometry_time> anim_g1 = {{0,g1_0},{1,g1_1},{2,g1_0}};
-    std::vector<joint_geometry_time> anim_g2 = {{0,g2},{1,g2},{2,g2}};
-    skeleton.anim = {anim_g0,anim_g1,anim_g2};
-
-    // Cylinder shape
-    mesh cylinder;
-    const size_t N=50;
-    const float r = 0.1f;
-    skinning.influence.clear();
-    for(size_t ku=0; ku<N; ++ku)
-    {
-        for(size_t kv=0; kv<N; ++kv)
-        {
-            const float u = ku/float(N-1.0f);
-            const float v = kv/float(N);
-
-            const float theta = 2*float(M_PI)* v;
-
-            const vec3 p = {u, r*std::cos(theta), r*std::sin(theta)};
-            const vec3 n = {0, std::cos(theta), std::sin(theta)};
-
-            cylinder.position.push_back(p);
-            cylinder.normal.push_back(n);
-        }
-    }
-    cylinder.connectivity = connectivity_grid(N,N,false,true);
-
-
-    // Skinning weights
-    for(size_t ku=0; ku<N; ++ku)
-    {
-        const float u = ku/float(N-1.0f);
-        for(size_t kv=0; kv<N; ++kv)
-        {
-            float w0, w1;
-            const float alpha = 3.0f; // power for skinning weights evolution
-            if(u<0.5f)
-            {
-                w1 = 0.5f*std::pow(u/0.5f, alpha);
-                w0 = 1-w1;
-            }
-            else
-            {
-                w0 = 0.5f*std::pow(1-(u-0.5f)/0.5f, alpha);
-                w1 = 1-w0;
-            }
-
-            skinning_influence influence_bone_0 = {0, w0};
-            skinning_influence influence_bone_1 = {1, w1};
-            skinning.influence.push_back( {influence_bone_0, influence_bone_1} );
-        }
-    }
-
-    skinning.rest_pose = cylinder.position;
-    skinning.deformed  = cylinder;
-
-    character_visual.data_gpu.clear();
-    character_visual = mesh_drawable(cylinder);
-
-    timer = timer_interval();
-    timer.t_max = 2.0f;
-}
-
 void display_skeleton(const std::vector<joint_geometry>& skeleton_geometry,
                       const std::vector<joint_connectivity>& skeleton_connectivity,
                       const std::map<std::string,GLuint>& shaders,
@@ -558,12 +457,12 @@ void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_str
     normal(skinning.deformed.position, skinning.deformed.connectivity, skinning.deformed.normal);
     character_visual.data_gpu.update_normal(skinning.deformed.normal);
 
-    if(scene.update_body_line){
+    if(scene.update_body_line){//select another body line, triggered by hitting "B"
         current_body_line = (current_body_line+1)%body_lines.size();
         scene.update_body_line = false;
     }
 
-    if(scene.update_curve){
+    if(scene.update_curve){//compute the interpolated LOA and the associated pose, triggered by hitting "C"
         interpolated_spline = spline(gui_param.two_spline, true);
         if(gui_param.two_spline){
             std::vector<vec3> s1, s2;
@@ -590,24 +489,22 @@ void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_str
     //if possible, diplay the interpolated spline
     if(gui_param.display_spline && !current_spline.empty())
         interpolated_LOA.draw(shaders["mesh"], scene.camera);
-    //display stuff
+    //display the skeleton
     if(gui_param.display_skeleton_bones)
         display_skeleton(skeleton_current, skeleton.connectivity, shaders, scene, segment_drawer);
+    //display the character
     if(gui_param.display_mesh) {
         glPolygonOffset( 1.0, 1.0 );
         character_visual.draw(shaders["mesh"],scene.camera);
     }
+    //display the geometry
     if(gui_param.display_wireframe) {
         glPolygonOffset( 1.0, 1.0 );
         character_visual.draw(shaders["wireframe"],scene.camera);
     }
+    //display the chosen bodyline
     if(gui_param.display_bodyline)
         display_bodyline(body_lines[current_body_line], skeleton_current, shaders, scene, sphere);
-    //debug
-    std::vector<int> debug = {0,14};
-    body_line bd;
-    bd.bones = debug;
-    display_bodyline(bd, skeleton_current, shaders, scene, sphere);
 }
 
 
@@ -616,9 +513,6 @@ void scene_exercise::set_gui()
     // Can set the speed of the animation
     float scale_min = 0.05f;
     float scale_max = 2.0f;
-
-    //ImGui::SliderScalar("Timer", ImGuiDataType_Float, &timer.t, &timer.t_min, &timer.t_max, "%.2f s");
-    //ImGui::SliderScalar("Time scale", ImGuiDataType_Float, &timer.scale, &scale_min, &scale_max, "%.2f s");
 
     ImGui::Checkbox("Skeleton bones", &gui_param.display_skeleton_bones);
     ImGui::Checkbox("Mesh", &gui_param.display_mesh);
@@ -629,18 +523,7 @@ void scene_exercise::set_gui()
     ImGui::Checkbox("Interpolated spline", &gui_param.display_spline);
     ImGui::Checkbox("User input", &gui_param.display_input);
     ImGui::Checkbox("Body Line", &gui_param.display_bodyline);
-    /*
-    if(ImGui::RadioButton("Cylinder", &gui_param.display_type,display_cylinder)){
-        load_cylinder_data();
-        compute_body_lines();
-    }
 
-    ImGui::SameLine();
-    if(ImGui::RadioButton("Character", &gui_param.display_type,display_character)){
-        load_character_data();
-        compute_body_lines();
-    }
-    */
     // Start and stop animation
     if (ImGui::Button("Reset"))
         current_pose = rest_pose;
