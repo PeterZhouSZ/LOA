@@ -221,11 +221,6 @@ void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& glo
     float real_dist, target_dist;
     float step = 0.001f;
     single_spline current_spline =  interpolated_spline.spl1;
-    vec3 xr;
-    //translation array, used to compute that of each bone in the body lines (the other bones will be at 0
-    std::vector<vec3> translations;
-    for(int i=0 ; i<global.size() ; i++)
-        translations.push_back(vec3(0.0f,0.0f,0.0f));
 
     body_line bodyline = body_lines[current_body_line];
     vec3 spl0 = interpolated_spline.spl1.p0;
@@ -240,21 +235,25 @@ void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& glo
         bodyline.bones = inverted_bodyline;
     }
     compute_body_line_warping(bodyline);
+    //translation array, used to compute that of each bone in the body lines (the other bones will be at 0
+    std::vector<vec3> translations;
+    for(int i=0 ; i<global.size() ; i++)
+        translations.push_back(vec3(0.0f,0.0f,0.0f));
     for(int i=0 ; i<bodyline.bones.size()-1 ; i++){
         translations[bodyline.bones[i]] = p0-global[bodyline.bones[i]].p;
-        global[bodyline.bones[i]].p = p0;
+        //global[bodyline.bones[i]].p = p0;
         //compute the next bone position
         s1 = s0 + step;
         p1 = hermit(s1, current_spline);
         target_dist = bodyline.S[i+1] - bodyline.S[i];
         real_dist = norm(p1-p0);
         if (gui_param.two_spline){
-            while(real_dist<target_dist && norm(p1-interpolated_spline.middle_pt) > 0.001f){
+            while(real_dist<target_dist && s1 < 1.0f-step){
                 s1 += step;
                 p1 = hermit(s1, current_spline);
                 real_dist = norm(p1-p0);
             }
-            if(norm(p1-interpolated_spline.middle_pt) < 0.001f){
+            if(s1 >= 1.0f-step){
                 current_spline = interpolated_spline.spl2;
                 s1 = 0.0f;
                 while(real_dist<target_dist){
@@ -273,38 +272,35 @@ void scene_exercise::compute_body_line_position(std::vector<joint_geometry>& glo
         p0=p1;
         s0=s1;
     }
-    translations[bodyline.bones.size()-1] = p0-global[bodyline.bones[bodyline.bones.size()-1]].p;
-    global[bodyline.bones[bodyline.bones.size()-1]].p = p0;
+    translations[bodyline.bones[bodyline.bones.size()-1]] = p0-global[bodyline.bones[bodyline.bones.size()-1]].p;
+    //global[bodyline.bones[bodyline.bones.size()-1]].p = p0;
     std::vector<bool> in_chain;
     for(int i=0 ; i<global.size() ; i++)
         in_chain.push_back(false);
     for(int bone : bodyline.bones)
         in_chain[bone] = true;
     //std::cout<<bodyline.root<<std::endl;
+    std::vector<int> roots;
     for(int i=0 ; i<global.size() ; i++){
+        int node=i;
         if(!in_chain[i]){
             //we look for the closest parent in the body line
-            int node=i;
-            while(!in_chain[node] && node!=0)
+            while(!in_chain[node] && node!=0){
+                //std::cout<< node << std::endl;
                 node = connectivity[node].parent;
+            }
+            //std::cout << "-------------------" << std::endl;
+            roots.push_back(node);
             if(node==0)
                 node = bodyline.root;
-            global[i].p += translations[node];
         }
+        global[i].p += translations[node];
     }
-    std::vector<joint_geometry> local;
+    //quaternion rotation
     global[0].r = rest_pose[0].r;
     for(int i=1 ; i<global.size() ; i++){
         int parent = connectivity[i].parent;
-        //global[i].r = global[parent].r * local[i].r;
-        if(in_chain[i]){
-            std::cout<<compute_rotation(rest_pose[i].p - rest_pose[parent].p, global[i].p-global[parent].p).apply(rest_pose[parent].r.apply(skeleton.rest_pose[i].p))<<std::endl;
-            std::cout<<rest_pose[i].p - rest_pose[parent].p<<std::endl;
-            std::cout<<global[i].p-global[parent].p<<std::endl;
-            std::cout<<"------------------------------"<<std::endl;
-        }
         global[parent].r = compute_rotation(rest_pose[i].p - rest_pose[parent].p, global[i].p-global[parent].p) * rest_pose[parent].r;
-        //global[parent].r = compute_rotation(skeleton.rest_pose[i].p, global[i].p-global[parent].p);
     }
 }
 
@@ -608,10 +604,10 @@ void scene_exercise::frame_draw(std::map<std::string,GLuint>& shaders, scene_str
     if(gui_param.display_bodyline)
         display_bodyline(body_lines[current_body_line], skeleton_current, shaders, scene, sphere);
     //debug
-    std::vector<int> debug = {14,22,41};
+    std::vector<int> debug = {0,14};
     body_line bd;
     bd.bones = debug;
-    //display_bodyline(bd, skeleton_current, shaders, scene, sphere);
+    display_bodyline(bd, skeleton_current, shaders, scene, sphere);
 }
 
 
